@@ -1,0 +1,2 @@
+
+The creators of the original Nanoid node.js module provided this [tool to calculate collision risk based on length of string and desired range of valid characters.](https://zelark.github.io/nano-id-cc/) Change these values in the application.properties file (src->main->resources->application.properties). See the [JNanoid README for limitations.](https://github.com/aventrix/jnanoid) 
