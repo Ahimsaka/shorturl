@@ -4,7 +4,7 @@ import lombok.Data;
 
 @Data
 public class UrlRecord {
-    private String finalUrl;
+    private String url;
     private String extension;
     private int hits;
 }

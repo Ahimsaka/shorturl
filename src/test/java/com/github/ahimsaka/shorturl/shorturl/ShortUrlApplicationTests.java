@@ -35,25 +35,24 @@ class DatabaseConnectionTests {
 }
 
 @SpringBootTest
-class UrlDataTests {
-    private static Logger log = LoggerFactory.getLogger(UrlDataTests.class);
+class UrlRecordDataObjectTests {
+    private static Logger log = LoggerFactory.getLogger(UrlRecordDataObjectTests.class);
 
-    @Autowired
-    ExtensionGenerator extensionGenerator;
+
 
     @Test
-    void UrlRecordObjectBasicTest() {
+    void UrlRecordDataObjectBasicTest() {
         UrlRecord urlRecord = new UrlRecord();
         urlRecord.setExtension("testExtension");
-        Assert.isTrue(urlRecord.getExtension() == "testExtension",
+        Assert.isTrue(urlRecord.getExtension().equals("testExtension"),
                 String.format("urlRecord.getExtension() returned %s, expected %s",
                         urlRecord.getExtension(),
                         "testExtension"));
 
-        urlRecord.setFinalUrl("testFinalUrl");
-        Assert.isTrue(urlRecord.getFinalUrl() == "testFinalUrl",
+        urlRecord.setUrl("testFinalUrl");
+        Assert.isTrue(urlRecord.getUrl().equals("testFinalUrl"),
                 String.format("urlRecord.getFinalUrl() returned %s, expected %s",
-                        urlRecord.getFinalUrl(),
+                        urlRecord.getUrl(),
                         "testFinalUrl"));
 
         urlRecord.setHits(42);
@@ -73,10 +72,10 @@ class ExtensionGeneratorTests {
     ExtensionGenerator extensionGenerator;
 
     @Test
-    void JNanoidConfigTest() {
+    void ExtensionGeneratorConfigTest() {
         Assert.isInstanceOf(Integer.class, extensionGenerator.getLength(), "ExtensionGenerator.length is not an integer value.");
         Assert.notNull(extensionGenerator.getChars(), "ExtensionGenerator.chars is NULL.");
-        Assert.hasText(extensionGenerator.getChars().toString(), "ExtensionGenerator.chars contains no text.");
+        Assert.hasText(Arrays.toString(extensionGenerator.getChars()), "ExtensionGenerator.chars contains no text.");
 
         for (int i = 0; i < extensionGenerator.getChars().length; i++) {
             String thisChar = String.valueOf(extensionGenerator.getChars()[i]);
@@ -116,7 +115,7 @@ class ExtensionGeneratorTests {
         for (int i = 0; i < 200; i++) {
             extensions[i] = extensionGenerator.generate();
         }
-        Set<String> uniqueExtensions = new HashSet<String>(Arrays.asList(extensions));
+        Set<String> uniqueExtensions = new HashSet<>(Arrays.asList(extensions));
         isTrue(uniqueExtensions.size() == extensions.length,
                 String.format("Found only %d unique extensions out of %d extensions generated.",
                         uniqueExtensions.size(),

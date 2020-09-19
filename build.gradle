@@ -36,7 +36,6 @@ dependencies {
 	implementation 'io.projectreactor:reactor-test'
 	// Additional:
 	implementation 'com.aventrix.jnanoid:jnanoid:2.0.0'
-	testImplementation 'io.r2dbc:r2dbc-postgresql'
 }
 
 test {

@@ -11,7 +11,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.data.r2dbc.config.AbstractR2dbcConfiguration;
 import org.springframework.data.r2dbc.core.DatabaseClient;
 import reactor.test.StepVerifier;
 
@@ -31,45 +35,21 @@ public class ShortUrlApplication implements CommandLineRunner {
 
 	}
 
+    /*@Configuration
+    @ConfigurationProperties(prefix = "r2dbc")
+    public class ApplicationConfiguration extends AbstractR2dbcConfiguration {
+
+        @Override
+        @Bean
+        public ConnectionFactory connectionFactory() {
+            return…;
+        }
+    }*/
+
 	@Override
 	public void run(String... args) {
 		log.info("EXECUTING : command line runner");
 
-		UrlRecord urlRecord = new UrlRecord();
-		urlRecord.setHits(42);
-		urlRecord.setFinalUrl("finalUrl");
-		urlRecord.setExtension(extensionGenerator.generate());
-
-
-		ConnectionFactory connectionFactory = ConnectionFactories.get("r2dbc:h2:mem:///test?options=DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE");
-
-		DatabaseClient client = DatabaseClient.create(connectionFactory);
-
-		client.execute("CREATE TABLE url_record" +
-				"(final_url VARCHAR(255) PRIMARY KEY," +
-				"extension VARCHAR(255)," +
-				"hits INT)")
-				.fetch()
-				.rowsUpdated()
-				.as(StepVerifier::create)
-				.expectNextCount(1)
-				.verifyComplete();
-
-		client.insert()
-				.into(UrlRecord.class)
-				.using(urlRecord)
-				.then()
-				.as(StepVerifier::create)
-				.verifyComplete();
-
-		client.select()
-				.from(UrlRecord.class)
-				.fetch()
-				.first()
-				.doOnNext(it -> log.info(it.toString()))
-				.as(StepVerifier::create)
-				.expectNextCount(1)
-				.verifyComplete();
 	}
 
 }
