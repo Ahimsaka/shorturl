@@ -1,8 +1,12 @@
 package com.github.ahimsaka.shorturl.shorturl.webconfig;
 
+import com.github.ahimsaka.shorturl.shorturl.r2dbc.R2DBCConfiguration;
+import com.github.ahimsaka.shorturl.shorturl.utils.ExtensionGenerator;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.reactive.config.EnableWebFlux;
@@ -15,11 +19,11 @@ import static org.springframework.web.reactive.function.server.RouterFunctions.r
 
 @Configuration
 @EnableWebFlux
+@RequiredArgsConstructor
+@EnableConfigurationProperties({ExtensionGenerator.class, R2DBCConfiguration.class})
 public class WebConfig implements WebFluxConfigurer {
-    Logger log = LoggerFactory.getLogger(WebConfig.class);
-
-    @Autowired
-    DatabaseHandler databaseHandler;
+    private final Logger log = LoggerFactory.getLogger(WebConfig.class);
+    private final DatabaseHandler databaseHandler;
 
     @Bean
     public RouterFunction<?> router() {

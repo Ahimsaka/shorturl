@@ -1,7 +1,8 @@
 package com.github.ahimsaka.shorturl.shorturl;
 
-import com.github.ahimsaka.shorturl.shorturl.dataobjects.UriRecord;
+import com.github.ahimsaka.shorturl.shorturl.r2dbc.UriRecord;
 import com.github.ahimsaka.shorturl.shorturl.utils.ExtensionGenerator;
+import com.github.ahimsaka.shorturl.shorturl.utils.URLTools;
 import com.github.ahimsaka.shorturl.shorturl.webconfig.DatabaseHandler;
 import com.github.ahimsaka.shorturl.shorturl.webconfig.WebConfig;
 import org.junit.jupiter.api.Test;
@@ -11,6 +12,7 @@ import org.mockito.Mockito;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.test.autoconfigure.web.reactive.WebFluxTest;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -20,7 +22,6 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 import org.springframework.util.Assert;
 
 import java.net.MalformedURLException;
-import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.Arrays;
@@ -36,10 +37,6 @@ import static org.springframework.web.reactive.function.server.ServerResponse.ok
 @SpringBootTest
 class ShortUrlApplicationTests {
 	private static Logger log = LoggerFactory.getLogger(ShortUrlApplicationTests.class);
-
-	@Test
-	void contextLoads() {
-	}
 }
 
 @SpringBootTest
@@ -91,16 +88,14 @@ class DatabaseHandlerTests {
                 .bodyValue("htttps://www.google.com/")
                 .exchange().expectStatus().isBadRequest();
     }
+}
 
-    @Test
-    void tempTest() {
-        try {
-            Assert.isTrue(new Boolean(new URI("www.google.com/").toURL().toString()), "test test");
-        } catch (MalformedURLException | URISyntaxException e) {
-            e.printStackTrace();
-            fail(e.getMessage());
-        }
-    }
+@SpringBootTest
+class URLToolsTests {
+    /* implement tests when method is fixed */
+    @Autowired
+    URLTools urlTools;
+
 }
 
 @ExtendWith(SpringExtension.class)
@@ -110,6 +105,7 @@ class WebConfigTests {
         Handling of invalid parameters/extensions takes place in DatabaseHandler, so testing
         for those edge cases will occur in DatabaseHandlerTests and Integration tests.
      */
+
     private static Logger log = LoggerFactory.getLogger(WebConfigTests.class);
 
     @Autowired
@@ -171,7 +167,6 @@ class ExtensionGeneratorTests {
         set with values that would generate illegal or unsafe extension strings.
      */
     private static Logger log = LoggerFactory.getLogger(ExtensionGeneratorTests.class);
-
     @Autowired
     ExtensionGenerator extensionGenerator;
 
@@ -208,7 +203,7 @@ class ExtensionGeneratorTests {
 
     @Test
     void ExtensionGeneratorOutputTest() {
-        //
+
         String extension = extensionGenerator.generate();
         Assert.isTrue(extension.length() == extensionGenerator.getLength(), "Extension is the wrong length.");
         for (int i = 0; i < extension.length(); i++) {
@@ -243,7 +238,6 @@ class ExtensionGeneratorTests {
 
 }
 
-@SpringBootTest
 class UriRecordDataObjectTests {
     /* tests basic functions of UriRecord.class POJOs
         No logic is included in that class, so these tests should only fail as a result of

@@ -1,7 +1,12 @@
 package com.github.ahimsaka.shorturl.shorturl.webconfig;
 
+import io.r2dbc.spi.ConnectionFactory;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.data.r2dbc.core.DatabaseClient;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.server.ServerRequest;
 import org.springframework.web.reactive.function.server.ServerResponse;
@@ -18,6 +23,11 @@ import static org.springframework.web.reactive.function.server.ServerResponse.*;
 @Component
 public class DatabaseHandler {
     Logger log = LoggerFactory.getLogger(DatabaseHandler.class);
+    @Autowired
+    ConnectionFactory connectionFactory;
+
+    DatabaseClient databaseClient = DatabaseClient.create(connectionFactory);
+
     // should return ok() + url if existing record
     // or created() + url if new record created.
     public Mono<ServerResponse> postUrl(ServerRequest request) {
@@ -41,7 +51,6 @@ public class DatabaseHandler {
         log.info("Not Found goin up");
         return notFound().build();
     }
-
 
     // For de-duplication, strip leading http or https input and trailing / from urls.
     private Mono<ServerResponse> checkUrlAndReturn(String url) {

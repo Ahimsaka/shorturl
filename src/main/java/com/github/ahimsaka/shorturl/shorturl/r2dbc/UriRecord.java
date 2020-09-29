@@ -1,4 +1,4 @@
-package com.github.ahimsaka.shorturl.shorturl.dataobjects;
+package com.github.ahimsaka.shorturl.shorturl.r2dbc;
 
 import lombok.Data;
 
