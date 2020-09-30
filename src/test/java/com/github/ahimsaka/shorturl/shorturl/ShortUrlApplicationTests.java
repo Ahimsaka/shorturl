@@ -1,25 +1,31 @@
 package com.github.ahimsaka.shorturl.shorturl;
 
-import com.github.ahimsaka.shorturl.shorturl.r2dbc.UriRecord;
+import com.github.ahimsaka.shorturl.shorturl.r2dbc.URLRecord;
 import com.github.ahimsaka.shorturl.shorturl.utils.ExtensionGenerator;
 import com.github.ahimsaka.shorturl.shorturl.utils.URLTools;
 import com.github.ahimsaka.shorturl.shorturl.webconfig.DatabaseHandler;
 import com.github.ahimsaka.shorturl.shorturl.webconfig.WebConfig;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.test.autoconfigure.data.jdbc.DataJdbcTest;
 import org.springframework.boot.test.autoconfigure.web.reactive.WebFluxTest;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.r2dbc.core.DatabaseClient;
+import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import org.springframework.util.Assert;
+import reactor.test.StepVerifier;
 
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
@@ -31,6 +37,7 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
 import static org.mockito.Mockito.times;
+import static org.springframework.data.relational.core.query.Criteria.where;
 import static org.springframework.util.Assert.isTrue;
 import static org.springframework.web.reactive.function.server.ServerResponse.ok;
 
@@ -40,8 +47,57 @@ class ShortUrlApplicationTests {
 }
 
 @SpringBootTest
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class DatabaseConnectionTests {
     private static Logger log = LoggerFactory.getLogger(DatabaseConnectionTests.class);
+    @Autowired
+    DatabaseClient databaseClient;
+
+    class TestURLRecord extends URLRecord {
+        public TestURLRecord(String extension, String url, int hits) {
+            super(extension, url, hits);
+        }
+    }
+
+    @BeforeAll
+    void createTestTable(){
+        databaseClient.execute("CREATE TABLE test_url_record" +
+                "(extension char(8) PRIMARY KEY," +
+                "url varchar(255) UNIQUE," +
+                "hits INT)")
+                .fetch()
+                .rowsUpdated()
+                .as(StepVerifier::create)
+                .expectNextCount(1)
+                .verifyComplete();
+    }
+    @AfterAll
+    void dropTestTable(){
+        databaseClient.execute("DROP TABLE test_url_record")
+                .fetch()
+                .rowsUpdated()
+                .as(StepVerifier::create)
+                .expectNextCount(1)
+                .verifyComplete();
+    }
+    @Test
+    void testSingletonInsertAndDelete(){
+       databaseClient.insert()
+                .into(TestURLRecord.class)
+                .using(new TestURLRecord( "klajljfa", "http://test", 0))
+                .then()
+                .as(StepVerifier::create)
+                .verifyComplete();
+
+       databaseClient.delete()
+               .from(TestURLRecord.class)
+               .matching(where("url").is("http://test"))
+               .fetch()
+               .rowsUpdated()
+               .as(StepVerifier::create)
+               .expectNext(1)
+               .verifyComplete();
+    }
 }
 
 @ExtendWith(SpringExtension.class)
@@ -52,6 +108,7 @@ class DatabaseHandlerTests {
 
     @Autowired
     WebTestClient webClient;
+
 
     @Test
     void postValidUrls(){
@@ -100,6 +157,7 @@ class URLToolsTests {
 
 @ExtendWith(SpringExtension.class)
 @WebFluxTest(controllers = WebConfig.class)
+@Import(DatabaseHandler.class)
 class WebConfigTests {
     /* class tests WebConfig.class to ensure proper routing of requests/parameters/extensions.
         Handling of invalid parameters/extensions takes place in DatabaseHandler, so testing
@@ -138,9 +196,10 @@ class WebConfigTests {
                 .uri("/testExt")
                 .exchange()
                 .expectStatus().isOk()
-                .expectBody(String.class).equals("Test Passed");
+                .expectBody(String.class).isEqualTo("Test Passed");
 
-        Mockito.verify(databaseHandler, times(1)).getUrl(ArgumentMatchers.any());
+        Mockito.verify(databaseHandler, times(1))
+                .getUrl(ArgumentMatchers.any());
     }
 
     @Test
@@ -154,9 +213,10 @@ class WebConfigTests {
                 .bodyValue("testBody")
                 .exchange()
                 .expectStatus().isOk()
-                .expectBody(String.class).equals("Test Passed");
+                .expectBody(String.class).isEqualTo("Test Passed");
 
-        Mockito.verify(databaseHandler, times(1)).postUrl(ArgumentMatchers.any());
+        Mockito.verify(databaseHandler, times(1))
+                .postUrl(ArgumentMatchers.any());
     }
 }
 
@@ -238,32 +298,32 @@ class ExtensionGeneratorTests {
 
 }
 
-class UriRecordDataObjectTests {
-    /* tests basic functions of UriRecord.class POJOs
+class URLRecordDataObjectTests {
+    /* tests basic functions of URLRecord.class POJOs
         No logic is included in that class, so these tests should only fail as a result of
         improper Spring or lombok configuration.
      */
-    private static Logger log = LoggerFactory.getLogger(UriRecordDataObjectTests.class);
+    private static Logger log = LoggerFactory.getLogger(URLRecordDataObjectTests.class);
 
     @Test
     void UriRecordDataObjectBasicTest() {
-        UriRecord uriRecord = new UriRecord();
-        uriRecord.setExtension("testExtension");
-        Assert.isTrue(uriRecord.getExtension().equals("testExtension"),
-                String.format("uriRecord.getExtension() returned %s, expected %s",
-                        uriRecord.getExtension(),
+        URLRecord URLRecord = new URLRecord();
+        URLRecord.setExtension("testExtension");
+        Assert.isTrue(URLRecord.getExtension().equals("testExtension"),
+                String.format("URLRecord.getExtension() returned %s, expected %s",
+                        URLRecord.getExtension(),
                         "testExtension"));
 
-        uriRecord.setUri("testFinalUrl");
-        Assert.isTrue(uriRecord.getUri().equals("testFinalUrl"),
-                String.format("uriRecord.getFinalUrl() returned %s, expected %s",
-                        uriRecord.getUri(),
+        URLRecord.setUrl("testFinalUrl");
+        Assert.isTrue(URLRecord.getUrl().equals("testFinalUrl"),
+                String.format("URLRecord.getFinalUrl() returned %s, expected %s",
+                        URLRecord.getUrl(),
                         "testFinalUrl"));
 
-        uriRecord.setHits(42);
-        Assert.isTrue(uriRecord.getHits() == 42,
-                String.format("uriRecord.getHits() returned %d, expected %d",
-                        uriRecord.getHits(),
+        URLRecord.setHits(42);
+        Assert.isTrue(URLRecord.getHits() == 42,
+                String.format("URLRecord.getHits() returned %d, expected %d",
+                        URLRecord.getHits(),
                         42));
     }
 }
