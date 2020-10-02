@@ -1,12 +1,8 @@
 package com.github.ahimsaka.shorturl.shorturl.webconfig;
 
-import com.github.ahimsaka.shorturl.shorturl.utils.ExtensionGenerator;
-import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.config.EnableWebFlux;
 import org.springframework.web.reactive.config.WebFluxConfigurer;
@@ -31,7 +27,7 @@ public class WebConfig implements WebFluxConfigurer {
         return route()
                 .GET("/{extension}", databaseHandler::getUrl)
                 .GET("/",  req -> ok().bodyValue("test success"))
-                .POST("/", databaseHandler::postUrl)
+                .PUT("/", databaseHandler::putURL)
                 .build();
     }
     // Implement configuration methods...

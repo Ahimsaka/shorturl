@@ -20,29 +20,14 @@ import reactor.test.StepVerifier;
 @EnableConfigurationProperties(ExtensionGenerator.class)
 public class ShortUrlApplication implements CommandLineRunner {
 	private static Logger log = LoggerFactory.getLogger(ShortUrlApplication.class);
-	private DatabaseClient databaseClient;
-
-	@Value("${jnanoid.length}")
-	String extensionLength;
-
-	ShortUrlApplication(DatabaseClient databaseClient){
-		this.databaseClient = databaseClient;
-	}
 
 	public static void main(String[] args) {
 		SpringApplication.run(ShortUrlApplication.class, args);
-		log.info("Started");
+		log.info("Server is up and running, big hoss.");
 	}
 
 	@Override
 	public void run(String... args) {
-		log.info("EXECUTING : command line runner");
-
-		databaseClient.execute(
-				"CREATE TABLE url_record(\n" +
-				"extension CHAR(" + extensionLength + ") PRIMARY KEY,\n" +
-				"url VARCHAR(255) UNIQUE,\n" +
-				"hits INT)").fetch().rowsUpdated().doOnError(e -> log.info(e.getMessage())).subscribe();
 	}
 
 }

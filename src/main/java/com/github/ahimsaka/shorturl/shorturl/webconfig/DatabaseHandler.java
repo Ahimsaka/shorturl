@@ -2,14 +2,10 @@ package com.github.ahimsaka.shorturl.shorturl.webconfig;
 
 import com.github.ahimsaka.shorturl.shorturl.r2dbc.URLRecord;
 import com.github.ahimsaka.shorturl.shorturl.utils.ExtensionGenerator;
-import io.r2dbc.spi.ConnectionFactory;
-import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.r2dbc.core.DatabaseClient;
+import org.springframework.data.util.Pair;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.server.ServerRequest;
@@ -20,7 +16,6 @@ import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.util.Arrays;
 import java.util.Map;
 
 import static org.springframework.data.relational.core.query.Criteria.where;
@@ -35,22 +30,43 @@ public class DatabaseHandler {
     DatabaseHandler(DatabaseClient databaseClient, ExtensionGenerator extensionGenerator){
         this.databaseClient = databaseClient;
         this.extensionGenerator = extensionGenerator;
+
+        // Attempt to create table. If it already exists, log the error and move on.
+        databaseClient.execute(
+                "CREATE TABLE url_record(\n" +
+                        "extension CHAR(" + extensionGenerator.getLength() + ") PRIMARY KEY,\n" +
+                        "url VARCHAR(255) UNIQUE,\n" +
+                        "hits INT)").fetch().rowsUpdated().doOnError(e -> log.info(e.getMessage())).subscribe();
+
     }
 
     // should return ok() + url if existing record
     // or created() + url if new record created.
-    public Mono<ServerResponse> postUrl(ServerRequest request) {
+    public Mono<ServerResponse> putURL(ServerRequest request) {
         return request.bodyToMono(String.class)
-                .flatMap(requestedURL -> databaseClient.insert()
-                        .into(URLRecord.class)
-                        .using(new URLRecord(extensionGenerator.generate(), requestedURL, 0))
-                        .fetch()
-                        .one()
-                ).flatMap(result ->
-                        created(URI.create(result.get("extension").toString()))
-                                .bodyValue(String.format("shortURL for %s created at extension '/%s'.",
-                                        result.get("url"), result.get("extension")))
-                );
+                .flatMap(url -> getByURL(url))
+                .flatMap(pair -> {
+                    if (pair.getFirst().equals("insert"))
+                        return created(URI.create(pair.getSecond().getExtension())).build();
+                    else if (pair.getFirst().equals("select"))
+                        return ok().bodyValue(pair.getSecond().getExtension());
+                    else
+                        return status(500).build();
+                });
+                /*.onErrorResume(Exception.class,
+                        req -> getByURL(request)
+                                .flatMap(result ->
+                                        ok().header("Location", result.getExtension()).bodyValue("Body for showin'"))));
+
+
+        request)
+                .log()
+                .flatMap(result -> {
+                    log.info(result.toString());
+                    return result.getHits() == 0
+                            ? created(URI.create(result.getExtension())).build()
+                            : ok().header("Location", result.getExtension()).build();
+                });*/
         // check for url existing
         // if record exists:
             // get record from db and
@@ -67,14 +83,12 @@ public class DatabaseHandler {
                 "UPDATE url_record\n" +
                         "SET hits = hits + 1\n" +
                         "WHERE extension = '" + extension + "' \n" +
-                        //"WHERE extension = :extension\n" +
                         "RETURNING *")
-                //.bind("extension", extension)
                 .fetch()
                 .one()
                 .switchIfEmpty(Mono.error(Error::new))
                 .flatMap(result -> temporaryRedirect(URI.create(result.get("url").toString())).build())
-                .onErrorResume(e -> status(HttpStatus.I_AM_A_TEAPOT).bodyValue(String.format("No record found for '%s'.", extension)));
+                .onErrorResume(e -> status(HttpStatus.BAD_REQUEST).bodyValue(String.format("No record found for '%s'.", extension)));
         // check if url exists
         // if exists:
             //   ServerResponse.temporaryRedirect(URI.create(TargetUrl)).build()
@@ -103,4 +117,26 @@ public class DatabaseHandler {
 
         return ok().bodyValue(String.join(".", splitUrl));
     }
+
+    private Mono<Pair<String, URLRecord>> getByURL(String url){
+        return databaseClient.select()
+                .from(URLRecord.class)
+                .matching(where("url").is(url))
+                .fetch()
+                .one()
+                .map(result -> Pair.of("select", result))
+                .filter(pair -> pair.getSecond().getExtension().length() == extensionGenerator.getLength())
+                .switchIfEmpty(insertURL(url));
+    }
+    private Mono<Pair<String, URLRecord>> insertURL(String url){
+        return databaseClient.insert()
+                .into(URLRecord.class)
+                .using(new URLRecord(extensionGenerator.generate(), url, 0))
+                .fetch()
+                .one()
+                .map(resultMap -> Pair.of("insert", new URLRecord(resultMap.get("extension").toString(),
+                        resultMap.get("url").toString(),
+                        Integer.valueOf(resultMap.get("hits").toString()))));
+    }
 }
+

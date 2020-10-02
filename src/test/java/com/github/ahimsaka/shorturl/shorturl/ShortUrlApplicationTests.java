@@ -15,13 +15,11 @@ import org.mockito.Mockito;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.data.jdbc.DataJdbcTest;
 import org.springframework.boot.test.autoconfigure.web.reactive.WebFluxTest;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.r2dbc.core.DatabaseClient;
-import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import org.springframework.util.Assert;
@@ -81,7 +79,7 @@ class DatabaseConnectionTests {
                 .verifyComplete();
     }
     @Test
-    void testSingletonInsertAndDelete(){
+    void singletonInsertAndDelete(){
        databaseClient.insert()
                 .into(TestURLRecord.class)
                 .using(new TestURLRecord( "klajljfa", "http://test", 0))
@@ -98,44 +96,62 @@ class DatabaseConnectionTests {
                .expectNext(1)
                .verifyComplete();
     }
+
+    @Test
+    void duplicateUrlInsertion(){
+        TestURLRecord testURLRecordA = new TestURLRecord("12345678", "https://testurlrecord.a/", 0);
+        TestURLRecord testURLRecordB = new TestURLRecord("87654321", "https://testurlrecord.a/", 0);
+    }
+    @Test
+    void duplicateExtensionInsertion(){
+
+    }
 }
 
-@ExtendWith(SpringExtension.class)
-@WebFluxTest
+/*
+@SpringBootTest
+@AutoConfigureWebTestClient
 @Import(DatabaseHandler.class)
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class DatabaseHandlerTests {
+    */
+/* Test class should either be temporary or moved to integration testing. Is useful
+    * short term for setting up input validation (when I get there) *//*
+
     private static Logger log = LoggerFactory.getLogger(DatabaseHandlerTests.class);
 
     @Autowired
     WebTestClient webClient;
 
+    @MockBean
+    DatabaseClient databaseClient;
 
     @Test
     void postValidUrls(){
         webClient.post()
                 .uri("/")
                 .bodyValue("https://google.com/")
-                .exchange().expectStatus().isOk();
+                .exchange().expectStatus().isCreated().expectHeader().exists("Location");
 
         webClient.post()
                 .uri("/")
                 .bodyValue("http://google.com/")
-                .exchange().expectStatus().isOk();
+                .exchange().expectStatus().isCreated().expectHeader().exists("Location");
 
         webClient.post()
                 .uri("/")
                 .bodyValue("https://www.google.com/")
-                .exchange().expectStatus().isOk();
+                .exchange().expectStatus().isCreated().expectHeader().exists("Location");
 
         webClient.post()
                 .uri("/")
                 .bodyValue("www.google.com/")
-                .exchange().expectStatus().isOk();
+                .exchange().expectStatus().isCreated().expectHeader().exists("Location");
 
         webClient.post()
                 .uri("/")
                 .bodyValue("google.com/")
-                .exchange().expectStatus().isOk();
+                .exchange().expectStatus().isCreated().expectHeader().exists("Location");
     }
 
     @Test
@@ -146,6 +162,7 @@ class DatabaseHandlerTests {
                 .exchange().expectStatus().isBadRequest();
     }
 }
+*/
 
 @SpringBootTest
 class URLToolsTests {
@@ -155,14 +172,14 @@ class URLToolsTests {
 
 }
 
-@ExtendWith(SpringExtension.class)
+/*@ExtendWith(SpringExtension.class)
 @WebFluxTest(controllers = WebConfig.class)
 @Import(DatabaseHandler.class)
 class WebConfigTests {
-    /* class tests WebConfig.class to ensure proper routing of requests/parameters/extensions.
+    *//* class tests WebConfig.class to ensure proper routing of requests/parameters/extensions.
         Handling of invalid parameters/extensions takes place in DatabaseHandler, so testing
         for those edge cases will occur in DatabaseHandlerTests and Integration tests.
-     */
+     *//*
 
     private static Logger log = LoggerFactory.getLogger(WebConfigTests.class);
 
@@ -205,7 +222,7 @@ class WebConfigTests {
     @Test
     void postRequestParamTest() {
         // test that WebConfig.route() passes correct parameter to the Handler function.
-        Mockito.when(databaseHandler.postUrl(ArgumentMatchers.any()))
+        Mockito.when(databaseHandler.putURL(ArgumentMatchers.any()))
                 .thenReturn(ok().bodyValue("Test Passed"));
 
         webClient.post()
@@ -216,9 +233,9 @@ class WebConfigTests {
                 .expectBody(String.class).isEqualTo("Test Passed");
 
         Mockito.verify(databaseHandler, times(1))
-                .postUrl(ArgumentMatchers.any());
+                .putURL(ArgumentMatchers.any());
     }
-}
+}*/
 
 @SpringBootTest
 class ExtensionGeneratorTests {
