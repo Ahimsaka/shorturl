@@ -7,16 +7,19 @@ import org.slf4j.LoggerFactory;
 import org.springframework.data.r2dbc.core.DatabaseClient;
 import org.springframework.data.util.Pair;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.stereotype.Component;
+import org.springframework.web.reactive.function.client.ClientResponse;
+import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.server.ServerRequest;
 import org.springframework.web.reactive.function.server.ServerResponse;
 import reactor.core.publisher.Mono;
+import reactor.netty.http.client.HttpClient;
 
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.util.Map;
 
 import static org.springframework.data.relational.core.query.Criteria.where;
 import static org.springframework.web.reactive.function.server.ServerResponse.*;
@@ -26,59 +29,45 @@ public class DatabaseHandler {
     Logger log = LoggerFactory.getLogger(DatabaseHandler.class);
     private final DatabaseClient databaseClient;
     private final ExtensionGenerator extensionGenerator;
+    private final WebClient webClient;
 
     DatabaseHandler(DatabaseClient databaseClient, ExtensionGenerator extensionGenerator){
         this.databaseClient = databaseClient;
         this.extensionGenerator = extensionGenerator;
+        this.webClient = WebClient.builder()
+                .clientConnector(new ReactorClientHttpConnector(
+                        HttpClient.create().followRedirect(false)
+                )).build();
 
         // Attempt to create table. If it already exists, log the error and move on.
         databaseClient.execute(
                 "CREATE TABLE url_record(\n" +
                         "extension CHAR(" + extensionGenerator.getLength() + ") PRIMARY KEY,\n" +
                         "url VARCHAR(255) UNIQUE,\n" +
-                        "hits INT)").fetch().rowsUpdated().doOnError(e -> log.info(e.getMessage())).subscribe();
-
+                        "hits INT)")
+                .fetch()
+                .rowsUpdated()
+                // Throws error if table already exists, so log the error and move on.
+                .doOnError(e -> log.error(e.getMessage()))
+                .subscribe();
     }
 
-    // should return ok() + url if existing record
-    // or created() + url if new record created.
+    /* return ok() + url if existing record
+     or created() + url if new record created. */
     public Mono<ServerResponse> putURL(ServerRequest request) {
         return request.bodyToMono(String.class)
-                .flatMap(url -> getByURL(url))
-                .flatMap(pair -> {
-                    if (pair.getFirst().equals("insert"))
-                        return created(URI.create(pair.getSecond().getExtension())).build();
-                    else if (pair.getFirst().equals("select"))
-                        return ok().bodyValue(pair.getSecond().getExtension());
-                    else
-                        return status(500).build();
+                .flatMap(url -> checkRedirects(standardizeURL(url)))
+                .flatMap(this::getOrInsertByURL)
+                .flatMap(pair -> switch (pair.getFirst()) {
+                    case "insert" -> created(URI.create(pair.getSecond().getExtension())).build();
+                    case "select" -> ok().bodyValue(pair.getSecond().getExtension());
+                    case "bad request" -> badRequest().bodyValue("Unable to resolve provided URL");
+                    default -> status(500).build();
                 });
-                /*.onErrorResume(Exception.class,
-                        req -> getByURL(request)
-                                .flatMap(result ->
-                                        ok().header("Location", result.getExtension()).bodyValue("Body for showin'"))));
-
-
-        request)
-                .log()
-                .flatMap(result -> {
-                    log.info(result.toString());
-                    return result.getHits() == 0
-                            ? created(URI.create(result.getExtension())).build()
-                            : ok().header("Location", result.getExtension()).build();
-                });*/
-        // check for url existing
-        // if record exists:
-            // get record from db and
-            // return ok().body(Mono.just(returnedRecord, String.class));
-        // else:
-            // return created().build(repository.saveRecord(urlRecord))
-        // ; // or ok().build() when more complex.
     }
 
-    public Mono<ServerResponse> getUrl(ServerRequest request) {
+    public Mono<ServerResponse> getURLByExtension(ServerRequest request) {
         String extension = request.pathVariable("extension");
-        log.info(extension);
         return databaseClient.execute(
                 "UPDATE url_record\n" +
                         "SET hits = hits + 1\n" +
@@ -88,37 +77,12 @@ public class DatabaseHandler {
                 .one()
                 .switchIfEmpty(Mono.error(Error::new))
                 .flatMap(result -> temporaryRedirect(URI.create(result.get("url").toString())).build())
-                .onErrorResume(e -> status(HttpStatus.BAD_REQUEST).bodyValue(String.format("No record found for '%s'.", extension)));
-        // check if url exists
-        // if exists:
-            //   ServerResponse.temporaryRedirect(URI.create(TargetUrl)).build()
-        //return notFound().build();
+                .onErrorResume(e -> status(HttpStatus.BAD_REQUEST)
+                        .bodyValue(String.format("No record found for '%s'.", extension)));
     }
 
-    // For de-duplication, strip leading http or https input and trailing / from urls.
-    private Mono<ServerResponse> checkUrlAndReturn(String url) {
-        if (url.endsWith("/")) url = url.substring(0, url.length() - 1);
-
-        URL checkUrl;
-        try {
-            URI checkUri = new URI(url).normalize();
-            if (!checkUri.isAbsolute()) checkUri = new URI("https://" + url);
-
-            checkUrl = checkUri.toURL();
-        } catch (MalformedURLException | URISyntaxException | IllegalArgumentException e) {
-            return badRequest().bodyValue(String.format("Error: %s; Message: %s", e.getClass(), e.getMessage()));
-        }
-
-        String[] splitUrl = checkUrl.toString().split("\\.");
-
-        if (splitUrl[0].equals("http://")
-                || splitUrl[0].equals("http://www")
-                || splitUrl[0].equals("https://www")) splitUrl[0] = "https://";
-
-        return ok().bodyValue(String.join(".", splitUrl));
-    }
-
-    private Mono<Pair<String, URLRecord>> getByURL(String url){
+    private Mono<Pair<String, URLRecord>> getOrInsertByURL(String url){
+        if (url.equals("bad request")) return Mono.just(Pair.of(url, new URLRecord()));
         return databaseClient.select()
                 .from(URLRecord.class)
                 .matching(where("url").is(url))
@@ -128,6 +92,7 @@ public class DatabaseHandler {
                 .filter(pair -> pair.getSecond().getExtension().length() == extensionGenerator.getLength())
                 .switchIfEmpty(insertURL(url));
     }
+
     private Mono<Pair<String, URLRecord>> insertURL(String url){
         return databaseClient.insert()
                 .into(URLRecord.class)
@@ -136,7 +101,43 @@ public class DatabaseHandler {
                 .one()
                 .map(resultMap -> Pair.of("insert", new URLRecord(resultMap.get("extension").toString(),
                         resultMap.get("url").toString(),
-                        Integer.valueOf(resultMap.get("hits").toString()))));
+                        Integer.parseInt(resultMap.get("hits").toString()))));
+    }
+
+    // Make sure that URL formatting is valid
+    private String standardizeURL(String url) {
+        log.info(url);
+        if (url.endsWith("/")) url = url.substring(0, url.length() - 1);
+
+        URL checkUrl;
+        try {
+            URI checkUri = new URI(url).normalize();
+            if (!checkUri.isAbsolute()) checkUri = new URI("https://" + url);
+            checkUrl = checkUri.toURL();
+        } catch (MalformedURLException | URISyntaxException | IllegalArgumentException e) {
+            return "bad request";
+        }
+        return checkUrl.toString();
+    }
+
+    // If temporary redirect, store requested URL. if permanent, store final Location.
+    private Mono<String> checkRedirects(String standardURL) {
+        if (standardURL.equals("bad request")) return Mono.just("bad request");
+        return webClient.get()
+                .uri(standardURL)
+                .exchange()
+                .onErrorReturn(ClientResponse.create(HttpStatus.NOT_FOUND).build())
+                .map(response -> Pair.of(response.statusCode(), response.headers().asHttpHeaders()))
+                .flatMap(pair -> {
+                    if (pair.getFirst().equals(HttpStatus.TEMPORARY_REDIRECT))
+                        return Mono.just(standardURL);
+                    else if (pair.getFirst().is3xxRedirection())
+                        return checkRedirects(pair.getSecond().getLocation().toString());
+                    else if (pair.getFirst().isError())
+                        return Mono.just("bad request");
+                    else return Mono.just(standardURL);
+                });
+
     }
 }
 

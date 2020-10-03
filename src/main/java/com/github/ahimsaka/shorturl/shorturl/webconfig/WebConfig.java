@@ -25,7 +25,7 @@ public class WebConfig implements WebFluxConfigurer {
     @Bean
     public RouterFunction<?> router() {
         return route()
-                .GET("/{extension}", databaseHandler::getUrl)
+                .GET("/{extension}", databaseHandler::getURLByExtension)
                 .GET("/",  req -> ok().bodyValue("test success"))
                 .PUT("/", databaseHandler::putURL)
                 .build();
