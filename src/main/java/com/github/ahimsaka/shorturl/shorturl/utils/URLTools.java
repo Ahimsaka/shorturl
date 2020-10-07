@@ -2,40 +2,60 @@ package com.github.ahimsaka.shorturl.shorturl.utils;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.util.Pair;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
+import java.net.MalformedURLException;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URL;
+
 @Component
 public class URLTools {
-    Logger log = LoggerFactory.getLogger(URLTools.class);
-    WebClient webClient = WebClient.create();
+    private static final Logger log = LoggerFactory.getLogger(URLTools.class);
+    private static final WebClient webClient = WebClient.create();
 
-    public Mono<String> resolveURL(String url) {
-        /* TO DO: implement method which requests URL and retrieves the final address
-            whence the request resolves. Commented code below has the Mono/WebClient logic
-            working but does not handle redirects correctly yet.
-        */
-        return Mono.just(url);
-        /*
-       return webClient.get()
-               .uri(url)
-               .exchange()
-               .flatMap(clientResponse -> {
-                    if (clientResponse.rawStatusCode() == 302) {
-                           return Mono.just(url);
-                    }
-                    if (clientResponse.statusCode().is3xxRedirection()) return Mono.just(clientResponse.headers().asHttpHeaders().get("Location").get(0));
-                    if (clientResponse.statusCode().isError()) {
-                        clientResponse.body((clientHttpResponse, context) -> {
-                            return clientHttpResponse.getBody();
-                        });
-                        return clientResponse.bodyToMono(String.class);
-                    }
-                    return Mono.just(url);
+    public static Mono<String> standardizeAndResolveURL(String url) {
+        return checkRedirects(standardizeURL(url));
+    }
+
+    // Make sure that URL formatting is valid
+    private static String standardizeURL(String url) {
+        if (url.endsWith("/")) url = url.substring(0, url.length() - 1);
+
+        URL checkUrl;
+        try {
+            URI checkUri = new URI(url).normalize();
+            if (!checkUri.isAbsolute()) checkUri = new URI("https://" + url);
+            checkUrl = checkUri.toURL();
+        } catch (MalformedURLException | URISyntaxException | IllegalArgumentException e) {
+            return "bad request";
+        }
+        return checkUrl.toString();
+    }
+
+    // If temporary redirect, store requested URL. if permanent, store final Location.
+    private static Mono<String> checkRedirects(String url) {
+        String standardURL = standardizeURL(url);
+        if (standardURL.equals("bad request")) return Mono.just("bad request");
+        return webClient.get()
+                .uri(standardURL)
+                .exchange()
+                .onErrorReturn(ClientResponse.create(HttpStatus.NOT_FOUND).build())
+                .map(response -> Pair.of(response.statusCode(), response.headers().asHttpHeaders()))
+                .flatMap(pair -> {
+                    if (pair.getFirst().equals(HttpStatus.TEMPORARY_REDIRECT))
+                        return Mono.just(standardURL);
+                    else if (pair.getFirst().is3xxRedirection())
+                        return checkRedirects(pair.getSecond().getLocation().toString());
+                    else if (pair.getFirst().isError())
+                        return Mono.just("bad request");
+                    else return Mono.just(standardURL);
                 });
-                */
+
     }
 }
