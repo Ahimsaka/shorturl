@@ -16,8 +16,11 @@ import org.springframework.web.reactive.function.server.ServerResponse;
 import reactor.core.publisher.Mono;
 import reactor.netty.http.client.HttpClient;
 
+import java.net.MalformedURLException;
 import java.net.URI;
+import java.net.URISyntaxException;
 
+import static com.github.ahimsaka.shorturl.shorturl.utils.URLTools.checkRedirects;
 import static org.springframework.data.relational.core.query.Criteria.where;
 import static org.springframework.web.reactive.function.server.ServerResponse.*;
 
@@ -43,29 +46,25 @@ public class DatabaseHandler {
     public void initTable(){
         // Attempt to create table. If it already exists, log the error and move on.
         databaseClient.execute(
-                "CREATE TABLE url_record(\n" +
+                "CREATE TABLE IF NOT EXISTS url_record(\n" +
                         "extension CHAR(" + extensionGenerator.getLength() + ") PRIMARY KEY,\n" +
                         "url VARCHAR(255) UNIQUE,\n" +
                         "hits INT)")
-                .fetch()
-                .rowsUpdated()
-                // Throws error if table already exists, so log the error and move on.
-                .doOnError(e -> log.error(e.getMessage()))
-                .subscribe();
+                .then();
     }
 
     /* return ok() + url if existing record
      or created() + url if new record created. */
     public Mono<ServerResponse> putURL(ServerRequest request) {
         return request.bodyToMono(String.class)
-                .flatMap(URLTools::standardizeAndResolveURL)
+                .flatMap(url -> checkRedirects(url))
                 .flatMap(this::getOrInsertByURL)
                 .flatMap(pair -> switch (pair.getFirst()) {
                     case "insert" -> created(URI.create(pair.getSecond().getExtension())).build();
                     case "select" -> ok().bodyValue(pair.getSecond().getExtension());
-                    case "bad request" -> badRequest().bodyValue("Unable to resolve provided URL");
                     default -> status(500).build();
-                });
+                })
+                .onErrorResume(e -> badRequest().bodyValue(e.getMessage()));
     }
 
     public Mono<ServerResponse> getURLByExtension(ServerRequest request) {
@@ -73,8 +72,9 @@ public class DatabaseHandler {
         return databaseClient.execute(
                 "UPDATE url_record\n" +
                         "SET hits = hits + 1\n" +
-                        "WHERE extension = '" + extension + "' \n" +
+                        "WHERE extension = :extension \n" +
                         "RETURNING *")
+                .bind("extension", extension)
                 .fetch()
                 .one()
                 .switchIfEmpty(Mono.error(Error::new))
@@ -84,7 +84,6 @@ public class DatabaseHandler {
     }
 
     private Mono<Pair<String, URLRecord>> getOrInsertByURL(String url){
-        if (url.equals("bad request")) return Mono.just(Pair.of(url, new URLRecord()));
         return databaseClient.select()
                 .from(URLRecord.class)
                 .matching(where("url").is(url))

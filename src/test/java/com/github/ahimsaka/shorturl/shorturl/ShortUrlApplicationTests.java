@@ -5,16 +5,14 @@ import com.github.ahimsaka.shorturl.shorturl.utils.ExtensionGenerator;
 import com.github.ahimsaka.shorturl.shorturl.utils.URLTools;
 import com.github.ahimsaka.shorturl.shorturl.webconfig.DatabaseHandler;
 import com.github.ahimsaka.shorturl.shorturl.webconfig.WebConfig;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.reactive.AutoConfigureWebTestClient;
 import org.springframework.boot.test.autoconfigure.web.reactive.WebFluxTest;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -23,6 +21,7 @@ import org.springframework.data.r2dbc.core.DatabaseClient;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import org.springframework.util.Assert;
+import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 import java.net.MalformedURLException;
@@ -108,47 +107,69 @@ class DatabaseConnectionTests {
     }
 }
 
-/*
+
 @SpringBootTest
 @AutoConfigureWebTestClient
 @Import(DatabaseHandler.class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class DatabaseHandlerTests {
-    */
+
 /* Test class should either be temporary or moved to integration testing. Is useful
-    * short term for setting up input validation (when I get there) *//*
+    * short term for setting up input validation (when I get there) */
 
     private static Logger log = LoggerFactory.getLogger(DatabaseHandlerTests.class);
 
     @Autowired
     WebTestClient webClient;
 
-    @MockBean
+    @Autowired
     DatabaseClient databaseClient;
+
+    @BeforeAll
+    void createTestTable(){
+        databaseClient.execute("CREATE TABLE test_url_record" +
+                "(extension char(8) PRIMARY KEY," +
+                "url varchar(255) UNIQUE," +
+                "hits INT)")
+                .fetch()
+                .rowsUpdated()
+                .as(StepVerifier::create)
+                .expectNextCount(1)
+                .verifyComplete();
+    }
+    @AfterAll
+    void dropTestTable(){
+        databaseClient.execute("DROP TABLE test_url_record")
+                .fetch()
+                .rowsUpdated()
+                .as(StepVerifier::create)
+                .expectNextCount(1)
+                .verifyComplete();
+    }
 
     @Test
     void postValidUrls(){
-        webClient.post()
+        webClient.put()
                 .uri("/")
                 .bodyValue("https://google.com/")
                 .exchange().expectStatus().isCreated().expectHeader().exists("Location");
 
-        webClient.post()
+        webClient.put()
                 .uri("/")
                 .bodyValue("http://google.com/")
                 .exchange().expectStatus().isCreated().expectHeader().exists("Location");
 
-        webClient.post()
+        webClient.put()
                 .uri("/")
                 .bodyValue("https://www.google.com/")
                 .exchange().expectStatus().isCreated().expectHeader().exists("Location");
 
-        webClient.post()
+        webClient.put()
                 .uri("/")
                 .bodyValue("www.google.com/")
                 .exchange().expectStatus().isCreated().expectHeader().exists("Location");
 
-        webClient.post()
+        webClient.put()
                 .uri("/")
                 .bodyValue("google.com/")
                 .exchange().expectStatus().isCreated().expectHeader().exists("Location");
@@ -156,86 +177,42 @@ class DatabaseHandlerTests {
 
     @Test
     void postInvalidUrls() {
-        webClient.post()
+        webClient.put()
                 .uri("/")
                 .bodyValue("htttps://www.google.com/")
                 .exchange().expectStatus().isBadRequest();
     }
+
 }
-*/
+
 
 @SpringBootTest
 class URLToolsTests {
     /* implement tests when method is fixed */
-    @Autowired
-    URLTools urlTools;
+
+    @Test
+    void testRedirectsToSameLocation(){
+        String urlA = URLTools.checkRedirects("http://www.google.com").block();
+        String urlB = URLTools.checkRedirects("http://google.com").block();
+
+        Assert.isTrue(urlA.equals(urlB), String.format("%s should be equal to %s", urlA, urlB));
+    }
+
+    @Test
+    void failInvalidURL(){
+        Assertions.assertThrows(Exception.class,
+                () -> URLTools.checkRedirects("localhost:8080/invalid_extension").block(),
+                "Expected MalformedURLException");
+
+        Mono mono = URLTools.checkRedirects("<>\\^`{|}");
+        Assert.isTrue(mono.equals(Mono.error(new Exception())), "Is not equal");
+
+        Assertions.assertThrows(Exception.class,
+                () -> URLTools.checkRedirects("<>\\^`{|}"),
+                "Expected URISyntaxException");
+    }
 
 }
-
-/*@ExtendWith(SpringExtension.class)
-@WebFluxTest(controllers = WebConfig.class)
-@Import(DatabaseHandler.class)
-class WebConfigTests {
-    *//* class tests WebConfig.class to ensure proper routing of requests/parameters/extensions.
-        Handling of invalid parameters/extensions takes place in DatabaseHandler, so testing
-        for those edge cases will occur in DatabaseHandlerTests and Integration tests.
-     *//*
-
-    private static Logger log = LoggerFactory.getLogger(WebConfigTests.class);
-
-    @Autowired
-    private WebTestClient webClient;
-
-    @MockBean
-    DatabaseHandler databaseHandler;
-
-    @Test
-    void contextLoads() {
-    }
-
-    @Test
-    void requestRootTest() {
-        // test response from "/", which does not call the Handler function.
-        webClient.get()
-                .uri("/")
-                .exchange()
-                .expectStatus().isOk()
-                .expectBody(String.class).isEqualTo("test success");
-    }
-
-    @Test
-    void getWithExtensionParamTest() {
-        // test that a get request with extension passes path variable accurately
-        Mockito.when(databaseHandler.getUrl(Mockito.argThat(request -> request.pathVariable("extension").equals("testExt"))))
-                .thenReturn(ok().bodyValue("Test Passed"));
-
-        webClient.get()
-                .uri("/testExt")
-                .exchange()
-                .expectStatus().isOk()
-                .expectBody(String.class).isEqualTo("Test Passed");
-
-        Mockito.verify(databaseHandler, times(1))
-                .getUrl(ArgumentMatchers.any());
-    }
-
-    @Test
-    void postRequestParamTest() {
-        // test that WebConfig.route() passes correct parameter to the Handler function.
-        Mockito.when(databaseHandler.putURL(ArgumentMatchers.any()))
-                .thenReturn(ok().bodyValue("Test Passed"));
-
-        webClient.post()
-                .uri("/")
-                .bodyValue("testBody")
-                .exchange()
-                .expectStatus().isOk()
-                .expectBody(String.class).isEqualTo("Test Passed");
-
-        Mockito.verify(databaseHandler, times(1))
-                .putURL(ArgumentMatchers.any());
-    }
-}*/
 
 @SpringBootTest
 class ExtensionGeneratorTests {
