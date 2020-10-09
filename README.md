@@ -22,19 +22,19 @@ GET requests are redirected to the stored URL. If the extension is not found in 
 
 All configuration options are found in the application.properties file at shorturl/src/resources/application.properties. 
 
-#####PostgresQL Configuration
+##### PostgresQL Configuration
 
 - logging.level.org.springframework.data.r2dbc - sets the logging level of the database client (default is DEBUG) 
 - spring.r2dbc.url - sets the location of the database server (default is localhost)
 - spring.r2dbc.username - sets the username used to access the database (default is user)
 - spring.r2dbc.password - sets the password associated with the username (default is password)
 
-#####Path Configuration
+##### Path Configuration
 
 - webconfig.put-path - sets the path for PUT requests (default is /)
 - webconfig.get-path - sets the path for GET requests (default is /)
 
-#####Extension Configuration
+##### Extension Configuration
 
 Extensions are generated via JNanoid. The creators of the original Nanoid node.js module provided this [tool to calculate collision risk based on length of string and desired range of valid characters.](https://zelark.github.io/nano-id-cc/)
  See the [JNanoid README for limitations.](https://github.com/aventrix/jnanoid) 
