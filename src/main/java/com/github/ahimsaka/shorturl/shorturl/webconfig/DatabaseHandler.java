@@ -5,20 +5,19 @@ import com.github.ahimsaka.shorturl.shorturl.utils.ExtensionGenerator;
 import com.github.ahimsaka.shorturl.shorturl.utils.URLTools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.data.r2dbc.core.DatabaseClient;
 import org.springframework.data.util.Pair;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
+import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.server.ServerRequest;
 import org.springframework.web.reactive.function.server.ServerResponse;
 import reactor.core.publisher.Mono;
 import reactor.netty.http.client.HttpClient;
+import org.springframework.jdbc.core.JdbcTemplate;
 
-import java.net.MalformedURLException;
 import java.net.URI;
-import java.net.URISyntaxException;
 
 import static com.github.ahimsaka.shorturl.shorturl.utils.URLTools.checkRedirects;
 import static org.springframework.data.relational.core.query.Criteria.where;
@@ -27,12 +26,12 @@ import static org.springframework.web.reactive.function.server.ServerResponse.*;
 @Component
 public class DatabaseHandler {
     Logger log = LoggerFactory.getLogger(DatabaseHandler.class);
-    private final DatabaseClient databaseClient;
+    private final JdbcTemplate jdbcTemplate;
     private final ExtensionGenerator extensionGenerator;
     private final WebClient webClient;
 
-    DatabaseHandler(DatabaseClient databaseClient, ExtensionGenerator extensionGenerator){
-        this.databaseClient = databaseClient;
+    DatabaseHandler(JdbcTemplate jdbcTemplate, ExtensionGenerator extensionGenerator) {
+        this.jdbcTemplate = jdbcTemplate;
         this.extensionGenerator = extensionGenerator;
 
         this.webClient = WebClient.builder()
@@ -40,24 +39,23 @@ public class DatabaseHandler {
                         HttpClient.create().followRedirect(false)
                 )).build();
 
-        initTable();
+        //initTable();
     }
 
-    public void initTable(){
+    public void initTable() {
         // Attempt to create table. If it already exists, log the error and move on.
-        databaseClient.execute(
+        jdbcTemplate.execute(
                 "CREATE TABLE IF NOT EXISTS url_record(\n" +
                         "extension CHAR(" + extensionGenerator.getLength() + ") PRIMARY KEY,\n" +
                         "url VARCHAR(255) UNIQUE,\n" +
-                        "hits INT)")
-                .then();
+                        "hits INT)");
     }
 
     /* return ok() + url if existing record
      or created() + url if new record created. */
     public Mono<ServerResponse> putURL(ServerRequest request) {
         return request.bodyToMono(String.class)
-                .flatMap(url -> checkRedirects(url))
+                .flatMap(URLTools::checkRedirects)
                 .flatMap(this::getOrInsertByURL)
                 .flatMap(pair -> switch (pair.getFirst()) {
                     case "insert" -> created(URI.create(pair.getSecond().getExtension())).build();
@@ -69,40 +67,36 @@ public class DatabaseHandler {
 
     public Mono<ServerResponse> getURLByExtension(ServerRequest request) {
         String extension = request.pathVariable("extension");
-        return databaseClient.execute(
+        jdbcTemplate.update(
                 "UPDATE url_record\n" +
                         "SET hits = hits + 1\n" +
-                        "WHERE extension = :extension \n" +
-                        "RETURNING *")
-                .bind("extension", extension)
-                .fetch()
-                .one()
-                .switchIfEmpty(Mono.error(Error::new))
-                .flatMap(result -> temporaryRedirect(URI.create(result.get("url").toString())).build())
+                        "WHERE extension = ? \n" +
+                        "RETURNING *", extension);
+        return temporaryRedirect(jdbcTemplate.queryForObject(
+                "SELECT url FROM url_record\n" +
+                        "WHERE extension = ? \n" +
+                        "RETURNING *", URI.class, extension)).build()
                 .onErrorResume(e -> status(HttpStatus.BAD_REQUEST)
                         .bodyValue(String.format("No record found for '%s'.", extension)));
     }
 
-    private Mono<Pair<String, URLRecord>> getOrInsertByURL(String url){
-        return databaseClient.select()
-                .from(URLRecord.class)
-                .matching(where("url").is(url))
-                .fetch()
-                .one()
-                .map(result -> Pair.of("select", result))
-                .filter(pair -> pair.getSecond().getExtension().length() == extensionGenerator.getLength())
-                .switchIfEmpty(insertURL(url));
-    }
+    private Mono<Pair<String, URLRecord>> getOrInsertByURL(String url) {
+        String extension = "";
+        try {
+            extension = jdbcTemplate.queryForObject(
+                    "SELECT extension FROM url_record WHERE url = ?",
+                    String.class,
+                    url
+            );
+        } catch (Exception e) {
+            URLRecord record = new URLRecord(extensionGenerator.generate(), url, 0);
+            jdbcTemplate.update("INSERT INTO url_record (url, extension, hits)" +
+                            "values (?, ?, ?)",
+                    record.getUrl(), record.getExtension(), record.getHits());
+            return Mono.just(Pair.of("insert", record));
+        }
 
-    private Mono<Pair<String, URLRecord>> insertURL(String url){
-        return databaseClient.insert()
-                .into(URLRecord.class)
-                .using(new URLRecord(extensionGenerator.generate(), url, 0))
-                .fetch()
-                .one()
-                .map(resultMap -> Pair.of("insert", new URLRecord(resultMap.get("extension").toString(),
-                        resultMap.get("url").toString(),
-                        Integer.parseInt(resultMap.get("hits").toString()))));
+        return Mono.just(Pair.of("select", new URLRecord(extension, url, 0)));
     }
 }
 

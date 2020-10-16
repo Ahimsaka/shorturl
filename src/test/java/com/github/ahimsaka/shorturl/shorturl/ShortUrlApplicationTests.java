@@ -5,8 +5,10 @@ import com.github.ahimsaka.shorturl.shorturl.utils.ExtensionGenerator;
 import com.github.ahimsaka.shorturl.shorturl.utils.URLTools;
 import com.github.ahimsaka.shorturl.shorturl.webconfig.DatabaseHandler;
 import com.github.ahimsaka.shorturl.shorturl.webconfig.WebConfig;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.Extension;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 import org.slf4j.Logger;
@@ -17,7 +19,6 @@ import org.springframework.boot.test.autoconfigure.web.reactive.WebFluxTest;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
-import org.springframework.data.r2dbc.core.DatabaseClient;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import org.springframework.util.Assert;
@@ -27,6 +28,8 @@ import reactor.test.StepVerifier;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.sql.SQLDataException;
+import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
@@ -47,9 +50,8 @@ class ShortUrlApplicationTests {
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class DatabaseConnectionTests {
     private static Logger log = LoggerFactory.getLogger(DatabaseConnectionTests.class);
-    @Autowired
-    DatabaseClient databaseClient;
 
+    /*
     class TestURLRecord extends URLRecord {
         public TestURLRecord(String extension, String url, int hits) {
             super(extension, url, hits);
@@ -104,18 +106,17 @@ class DatabaseConnectionTests {
     @Test
     void duplicateExtensionInsertion(){
 
-    }
+    }*/
 }
 
 
 @SpringBootTest
 @AutoConfigureWebTestClient
-@Import(DatabaseHandler.class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class DatabaseHandlerTests {
 
 /* Test class should either be temporary or moved to integration testing. Is useful
-    * short term for setting up input validation (when I get there) */
+    * short term for setting up input validation (when I get there)*/
 
     private static Logger log = LoggerFactory.getLogger(DatabaseHandlerTests.class);
 
@@ -123,28 +124,11 @@ class DatabaseHandlerTests {
     WebTestClient webClient;
 
     @Autowired
-    DatabaseClient databaseClient;
+    JdbcTemplate jdbcTemplate;
 
-    @BeforeAll
-    void createTestTable(){
-        databaseClient.execute("CREATE TABLE test_url_record" +
-                "(extension char(8) PRIMARY KEY," +
-                "url varchar(255) UNIQUE," +
-                "hits INT)")
-                .fetch()
-                .rowsUpdated()
-                .as(StepVerifier::create)
-                .expectNextCount(1)
-                .verifyComplete();
-    }
     @AfterAll
-    void dropTestTable(){
-        databaseClient.execute("DROP TABLE test_url_record")
-                .fetch()
-                .rowsUpdated()
-                .as(StepVerifier::create)
-                .expectNextCount(1)
-                .verifyComplete();
+    void clearTestDB() {
+        jdbcTemplate.execute("DROP table url_record");
     }
 
     @Test
@@ -161,17 +145,17 @@ class DatabaseHandlerTests {
 
         webClient.put()
                 .uri("/")
-                .bodyValue("https://www.google.com/")
+                .bodyValue("https://www.yahoo.com/")
                 .exchange().expectStatus().isCreated().expectHeader().exists("Location");
 
         webClient.put()
                 .uri("/")
-                .bodyValue("www.google.com/")
+                .bodyValue("www.espn.com/")
                 .exchange().expectStatus().isCreated().expectHeader().exists("Location");
 
         webClient.put()
                 .uri("/")
-                .bodyValue("google.com/")
+                .bodyValue("nba.com/")
                 .exchange().expectStatus().isCreated().expectHeader().exists("Location");
     }
 
@@ -200,16 +184,11 @@ class URLToolsTests {
 
     @Test
     void failInvalidURL(){
-        Assertions.assertThrows(Exception.class,
-                () -> URLTools.checkRedirects("localhost:8080/invalid_extension").block(),
-                "Expected MalformedURLException");
+        StepVerifier.create(URLTools.checkRedirects("localhost:8080/invalid_extension"))
+                .expectError(MalformedURLException.class);
 
-        Mono mono = URLTools.checkRedirects("<>\\^`{|}");
-        Assert.isTrue(mono.equals(Mono.error(new Exception())), "Is not equal");
-
-        Assertions.assertThrows(Exception.class,
-                () -> URLTools.checkRedirects("<>\\^`{|}"),
-                "Expected URISyntaxException");
+        StepVerifier.create(URLTools.checkRedirects("<>\\^`{|}"))
+                .expectError(URISyntaxException.class);
     }
 
 }
@@ -221,8 +200,9 @@ class ExtensionGeneratorTests {
         set with values that would generate illegal or unsafe extension strings.
      */
     private static Logger log = LoggerFactory.getLogger(ExtensionGeneratorTests.class);
+
     @Autowired
-    ExtensionGenerator extensionGenerator;
+    ExtensionGenerator extensionGenerator = new ExtensionGenerator();
 
     @Test
     void ExtensionGeneratorConfigTest() {
