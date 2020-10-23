@@ -3,110 +3,30 @@ package com.github.ahimsaka.shorturl.shorturl;
 import com.github.ahimsaka.shorturl.shorturl.r2dbc.URLRecord;
 import com.github.ahimsaka.shorturl.shorturl.utils.ExtensionGenerator;
 import com.github.ahimsaka.shorturl.shorturl.utils.URLTools;
-import com.github.ahimsaka.shorturl.shorturl.webconfig.DatabaseHandler;
-import com.github.ahimsaka.shorturl.shorturl.webconfig.WebConfig;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.junit.jupiter.api.*;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.extension.Extension;
-import org.mockito.ArgumentMatchers;
-import org.mockito.Mockito;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.reactive.AutoConfigureWebTestClient;
-import org.springframework.boot.test.autoconfigure.web.reactive.WebFluxTest;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.context.annotation.Import;
-import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import org.springframework.util.Assert;
-import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.sql.SQLDataException;
-import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
-import static org.mockito.Mockito.times;
-import static org.springframework.data.relational.core.query.Criteria.where;
 import static org.springframework.util.Assert.isTrue;
-import static org.springframework.web.reactive.function.server.ServerResponse.ok;
 
 @SpringBootTest
 class ShortUrlApplicationTests {
 	private static Logger log = LoggerFactory.getLogger(ShortUrlApplicationTests.class);
-}
-
-@SpringBootTest
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
-class DatabaseConnectionTests {
-    private static Logger log = LoggerFactory.getLogger(DatabaseConnectionTests.class);
-
-    /*
-    class TestURLRecord extends URLRecord {
-        public TestURLRecord(String extension, String url, int hits) {
-            super(extension, url, hits);
-        }
-    }
-
-    @BeforeAll
-    void createTestTable(){
-        databaseClient.execute("CREATE TABLE test_url_record" +
-                "(extension char(8) PRIMARY KEY," +
-                "url varchar(255) UNIQUE," +
-                "hits INT)")
-                .fetch()
-                .rowsUpdated()
-                .as(StepVerifier::create)
-                .expectNextCount(1)
-                .verifyComplete();
-    }
-    @AfterAll
-    void dropTestTable(){
-        databaseClient.execute("DROP TABLE test_url_record")
-                .fetch()
-                .rowsUpdated()
-                .as(StepVerifier::create)
-                .expectNextCount(1)
-                .verifyComplete();
-    }
-    @Test
-    void singletonInsertAndDelete(){
-       databaseClient.insert()
-                .into(TestURLRecord.class)
-                .using(new TestURLRecord( "klajljfa", "http://test", 0))
-                .then()
-                .as(StepVerifier::create)
-                .verifyComplete();
-
-       databaseClient.delete()
-               .from(TestURLRecord.class)
-               .matching(where("url").is("http://test"))
-               .fetch()
-               .rowsUpdated()
-               .as(StepVerifier::create)
-               .expectNext(1)
-               .verifyComplete();
-    }
-
-    @Test
-    void duplicateUrlInsertion(){
-        TestURLRecord testURLRecordA = new TestURLRecord("12345678", "https://testurlrecord.a/", 0);
-        TestURLRecord testURLRecordB = new TestURLRecord("87654321", "https://testurlrecord.a/", 0);
-    }
-    @Test
-    void duplicateExtensionInsertion(){
-
-    }*/
 }
 
 
@@ -128,7 +48,7 @@ class DatabaseHandlerTests {
 
     @AfterAll
     void clearTestDB() {
-        jdbcTemplate.execute("DROP table url_record");
+        jdbcTemplate.execute("DELETE FROM url_record");
     }
 
     @Test
@@ -160,15 +80,35 @@ class DatabaseHandlerTests {
     }
 
     @Test
-    void postInvalidUrls() {
+    void postInvalidURL() {
         webClient.put()
                 .uri("/")
                 .bodyValue("htttps://www.google.com/")
                 .exchange().expectStatus().isBadRequest();
     }
 
-}
+    @Test
+    void getValidExtension(){
+        try {
+            jdbcTemplate.update("INSERT INTO url_record VALUES ('http://www.bing.com/', '12345678', 0);");
+        } catch (Exception e) {
+            fail(e.getMessage());
+        }
+        webClient.get()
+                .uri("/12345678")
+                .exchange()
+                .expectStatus().isTemporaryRedirect();
+    }
+    @Test
+    void getInvalidExtension(){
+        webClient.get()
+                .uri("/87654321")
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody().equals("No record found for '87654321'.");
+    }
 
+}
 
 @SpringBootTest
 class URLToolsTests {

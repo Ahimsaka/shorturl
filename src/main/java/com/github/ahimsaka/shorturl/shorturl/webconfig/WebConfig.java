@@ -31,7 +31,7 @@ public class WebConfig implements WebFluxConfigurer {
     @Bean
     public RouterFunction<?> router() {
         return route()
-                .GET(getPath + "/{extension}", databaseHandler::getURLByExtension)
+                .GET(getPath + "{extension}", databaseHandler::getURLByExtension)
                 .PUT(putPath, databaseHandler::putURL)
                 .build();
     }

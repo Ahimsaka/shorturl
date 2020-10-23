@@ -5,6 +5,7 @@ import com.github.ahimsaka.shorturl.shorturl.utils.ExtensionGenerator;
 import com.github.ahimsaka.shorturl.shorturl.utils.URLTools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataAccessException;
 import org.springframework.data.util.Pair;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
@@ -67,17 +68,18 @@ public class DatabaseHandler {
 
     public Mono<ServerResponse> getURLByExtension(ServerRequest request) {
         String extension = request.pathVariable("extension");
-        jdbcTemplate.update(
-                "UPDATE url_record\n" +
-                        "SET hits = hits + 1\n" +
-                        "WHERE extension = ? \n" +
-                        "RETURNING *", extension);
+        int update = jdbcTemplate.update(
+                    "UPDATE url_record\n" +
+                            "SET hits = hits + 1\n" +
+                            "WHERE extension = ?", extension);
+
+        if (update == 0) return badRequest().bodyValue(String.format("No record found for '%s'.", extension));
+
         return temporaryRedirect(jdbcTemplate.queryForObject(
                 "SELECT url FROM url_record\n" +
-                        "WHERE extension = ? \n" +
-                        "RETURNING *", URI.class, extension)).build()
+                        "WHERE extension = ?", URI.class, extension)).build()
                 .onErrorResume(e -> status(HttpStatus.BAD_REQUEST)
-                        .bodyValue(String.format("No record found for '%s'.", extension)));
+                        .bodyValue(String.format("Request for '%s' threw exception %s.", extension, e)));
     }
 
     private Mono<Pair<String, URLRecord>> getOrInsertByURL(String url) {
