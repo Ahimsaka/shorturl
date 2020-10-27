@@ -1,6 +1,6 @@
 ### Introduction
 
-This application leverages [Spring Webflux](https://docs.spring.io/spring-framework/docs/current/spring-framework-reference/web-reactive.html#webflux) with [R2DBC](https://spring.io/projects/spring-data-r2dbc) to deliver a fully reactive URL shortener microservice. 
+This application leverages [Spring Webflux](https://docs.spring.io/spring-framework/docs/current/spring-framework-reference/web-reactive.html#webflux) with JDBC and Flyway to deliver a reactive URL shortener microservice. 
 
 To run the application with default settings, you must have a Postgres database named mydb on the host machine, with CREATE, UPDATE, SELECT, and INSERT permissions set for a username "user"/password "password" on the PUBLIC schema. 
 __Changing these defaults, as discussed below, is highly recommended.__
