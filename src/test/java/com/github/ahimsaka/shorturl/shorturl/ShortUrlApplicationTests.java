@@ -34,10 +34,6 @@ class ShortUrlApplicationTests {
 @AutoConfigureWebTestClient
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class DatabaseHandlerTests {
-
-/* Test class should either be temporary or moved to integration testing. Is useful
-    * short term for setting up input validation (when I get there)*/
-
     private static Logger log = LoggerFactory.getLogger(DatabaseHandlerTests.class);
 
     @Autowired
@@ -52,35 +48,15 @@ class DatabaseHandlerTests {
     }
 
     @Test
-    void postValidUrls(){
+    void putValidURL(){
         webClient.put()
                 .uri("/")
                 .bodyValue("https://google.com/")
                 .exchange().expectStatus().isCreated().expectHeader().exists("Location");
-
-        webClient.put()
-                .uri("/")
-                .bodyValue("http://google.com/")
-                .exchange().expectStatus().isCreated().expectHeader().exists("Location");
-
-        webClient.put()
-                .uri("/")
-                .bodyValue("https://www.yahoo.com/")
-                .exchange().expectStatus().isCreated().expectHeader().exists("Location");
-
-        webClient.put()
-                .uri("/")
-                .bodyValue("www.espn.com/")
-                .exchange().expectStatus().isCreated().expectHeader().exists("Location");
-
-        webClient.put()
-                .uri("/")
-                .bodyValue("nba.com/")
-                .exchange().expectStatus().isCreated().expectHeader().exists("Location");
     }
 
     @Test
-    void postInvalidURL() {
+    void putInvalidURL() {
         webClient.put()
                 .uri("/")
                 .bodyValue("htttps://www.google.com/")
@@ -112,7 +88,12 @@ class DatabaseHandlerTests {
 
 @SpringBootTest
 class URLToolsTests {
-    /* implement tests when method is fixed */
+    @Test
+    void testValidURL(){
+        StepVerifier.create(URLTools.checkRedirects("http://www.google.com"))
+                .assertNext(url -> url.equals("http://www.googel.com"))
+                .verifyComplete();
+    }
 
     @Test
     void testRedirectsToSameLocation(){
@@ -125,10 +106,12 @@ class URLToolsTests {
     @Test
     void failInvalidURL(){
         StepVerifier.create(URLTools.checkRedirects("localhost:8080/invalid_extension"))
-                .expectError(MalformedURLException.class);
+                .expectError(MalformedURLException.class)
+                .verify();
 
         StepVerifier.create(URLTools.checkRedirects("<>\\^`{|}"))
-                .expectError(URISyntaxException.class);
+                .expectError(URISyntaxException.class)
+                .verify();
     }
 
 }

@@ -1,6 +1,7 @@
 package com.github.ahimsaka.shorturl.shorturl.utils;
 
 import com.aventrix.jnanoid.jnanoid.NanoIdUtils;
+import lombok.AllArgsConstructor;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 

@@ -40,16 +40,10 @@ public class DatabaseHandler {
                         HttpClient.create().followRedirect(false)
                 )).build();
 
-        //initTable();
     }
 
-    public void initTable() {
-        // Attempt to create table. If it already exists, log the error and move on.
-        jdbcTemplate.execute(
-                "CREATE TABLE IF NOT EXISTS url_record(\n" +
-                        "extension CHAR(" + extensionGenerator.getLength() + ") PRIMARY KEY,\n" +
-                        "url VARCHAR(255) UNIQUE,\n" +
-                        "hits INT)");
+    public Mono<ServerResponse> getAllByUser(ServerRequest request) {
+        return ok().bodyValue("Implement me, jackhog.");
     }
 
     /* return ok() + url if existing record
