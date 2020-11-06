@@ -5,10 +5,22 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.context.ReactiveSecurityContextHolder;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Component;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.reactive.config.EnableWebFlux;
 import org.springframework.web.reactive.config.WebFluxConfigurer;
 import org.springframework.web.reactive.function.server.RouterFunction;
+import org.springframework.web.reactive.function.server.RouterFunctions;
+import org.springframework.web.reactive.function.server.ServerRequest;
+import org.springframework.web.reactive.function.server.ServerResponse;
+import reactor.core.publisher.Mono;
 
 import static org.springframework.web.reactive.function.server.ServerResponse.ok;
 
@@ -28,13 +40,23 @@ public class WebConfig implements WebFluxConfigurer {
         this.databaseHandler = databaseHandler;
     }
 
+    Mono<SecurityContext> context = ReactiveSecurityContextHolder.getContext();
+
     @Bean
     public RouterFunction<?> router() {
         return route()
-                .GET(getPath + "user", databaseHandler::getAllByUser)
+                .GET("/user", (ServerRequest request)-> {
+
+                    return context.map(SecurityContext::getAuthentication)
+                            .map(Authentication::getPrincipal)
+                            .flatMap(databaseHandler::getAllByUser);
+
+
+                })
                 .GET(getPath + "{extension}", databaseHandler::getURLByExtension)
                 .PUT(putPath, databaseHandler::putURL)
                 .build();
     }
+
     // Implement configuration methods...
 }

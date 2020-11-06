@@ -20,6 +20,7 @@ repositories {
 
 dependencies {
 	// Spring Boot Provided:
+	compile 'org.springframework.boot:spring-boot-starter-oauth2-client'
 	implementation 'org.springframework.boot:spring-boot-starter-security'
 	implementation 'org.springframework.security:spring-security-test'
 	implementation 'org.springframework.boot:spring-boot-starter-data-jdbc'

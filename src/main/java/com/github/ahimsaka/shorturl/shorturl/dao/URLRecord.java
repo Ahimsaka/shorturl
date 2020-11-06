@@ -1,4 +1,4 @@
-package com.github.ahimsaka.shorturl.shorturl.r2dbc;
+package com.github.ahimsaka.shorturl.shorturl.dao;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

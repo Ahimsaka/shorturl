@@ -1,15 +1,20 @@
 package com.github.ahimsaka.shorturl.shorturl.webconfig;
 
-import com.github.ahimsaka.shorturl.shorturl.r2dbc.URLRecord;
+import com.github.ahimsaka.shorturl.shorturl.dao.URLRecord;
 import com.github.ahimsaka.shorturl.shorturl.utils.ExtensionGenerator;
 import com.github.ahimsaka.shorturl.shorturl.utils.URLTools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.dao.DataAccessException;
 import org.springframework.data.util.Pair;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
-import org.springframework.jdbc.core.RowMapper;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.context.ReactiveSecurityContextHolder;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
+import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
+import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.server.ServerRequest;
@@ -20,8 +25,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.net.URI;
 
-import static com.github.ahimsaka.shorturl.shorturl.utils.URLTools.checkRedirects;
-import static org.springframework.data.relational.core.query.Criteria.where;
 import static org.springframework.web.reactive.function.server.ServerResponse.*;
 
 @Component
@@ -42,8 +45,17 @@ public class DatabaseHandler {
 
     }
 
-    public Mono<ServerResponse> getAllByUser(ServerRequest request) {
-        return ok().bodyValue("Implement me, jackhog.");
+    public Mono<ServerResponse> getAllByUser(Object principal) {
+        DefaultOAuth2User user = (DefaultOAuth2User) principal;
+        log.info(user.getAttributes().toString());
+        return ok().bodyValue(user.getAttributes().toString());
+        //DefaultOidcUser user = (DefaultOidcUser) principal;
+        //log.info(user.getName() + "\n" + user.getPreferredUsername() + "\n" + user.getIdToken().toString());
+        //return ok().bodyValue(((DefaultOidcUser) principal).getUserInfo().getFullName());
+
+        /*jdbcTemplate.execute("SELECT n2.extension, n2.url " +
+                "FROM (SELECT extension FROM user_links WHERE username = ?) n1" +
+                "INNER JOIN (select extension, url from url_record) n2", principal)*/
     }
 
     /* return ok() + url if existing record
