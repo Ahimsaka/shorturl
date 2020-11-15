@@ -1,6 +1,7 @@
 create table if not exists users(
     username varchar(50) not null primary key,
-    password varchar(500) not null,
+    issuer varchar(200) not null,
+    password varchar(500),
     enabled boolean not null
 );
 

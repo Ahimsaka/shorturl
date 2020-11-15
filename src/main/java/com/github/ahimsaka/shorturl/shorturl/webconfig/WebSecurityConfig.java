@@ -12,6 +12,7 @@ import org.springframework.security.core.userdetails.MapReactiveUserDetailsServi
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.provisioning.JdbcUserDetailsManager;
@@ -45,42 +46,25 @@ public class WebSecurityConfig {
                 .and()
                 .oauth2Login()
                 .and()
+                .csrf().disable()
                 .formLogin()
                 .and()
                 .build();
     }
-/*
-    @Bean
-    public UserDetailsService userDetailsService(String username) {
-        JdbcUserDetailsManager users = new JdbcUserDetailsManager(dataSource);
-        log.info(username);
-        return new UserDetailsService(users.loadUserByUsername(username));
-    }
-
-
-    public interface ReactiveUserDetailsService {
-        Mono<UserDetails> findByUsername(String username);
-    }
-
 
     @Bean
-    UserDetailsManager users(DataSource dataSource) {
+    public MapReactiveUserDetailsService userDetailsService() {
         UserDetails user = User.builder()
                 .username("user")
-                .password(passwordEncoder.encode("password"))
+                .password(passwordEncoder.encode("user"))
                 .roles("USER")
                 .build();
         UserDetails admin = User.builder()
                 .username("admin")
-                .password("{bcrypt}$2a$10$GRLdNijSQMUvl/au9ofL.eDwmoohzzS7.rmNSJZ.0FxO/BTk76klW")
-                .roles("USER", "ADMIN")
+                .password(passwordEncoder.encode("admin"))
+                .roles("ADMIN")
                 .build();
-        users.createUser(user);
-        users.createUser(admin);
-
-        JdbcUserDetailsManager users = new JdbcUserDetailsManager(dataSource);
-        return users;
+        return new MapReactiveUserDetailsService(user, admin);
     }
-    */
 }
 

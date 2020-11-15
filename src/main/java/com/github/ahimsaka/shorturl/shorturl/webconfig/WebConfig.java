@@ -22,9 +22,11 @@ import org.springframework.web.reactive.function.server.ServerRequest;
 import org.springframework.web.reactive.function.server.ServerResponse;
 import reactor.core.publisher.Mono;
 
-import static org.springframework.web.reactive.function.server.ServerResponse.ok;
+import java.net.URI;
 
 import static org.springframework.web.reactive.function.server.RouterFunctions.route;
+import static org.springframework.web.reactive.function.server.ServerResponse.*;
+import static org.springframework.web.reactive.function.server.ServerResponse.badRequest;
 
 @Component
 @EnableWebFlux
@@ -45,14 +47,8 @@ public class WebConfig implements WebFluxConfigurer {
     @Bean
     public RouterFunction<?> router() {
         return route()
-                .GET("/user", (ServerRequest request)-> {
-
-                    return context.map(SecurityContext::getAuthentication)
-                            .map(Authentication::getPrincipal)
-                            .flatMap(databaseHandler::getAllByUser);
-
-
-                })
+                .GET(getPath + "user", databaseHandler::getAllByUser)
+                .PUT(getPath + "user", databaseHandler::putURLAsUser)
                 .GET(getPath + "{extension}", databaseHandler::getURLByExtension)
                 .PUT(putPath, databaseHandler::putURL)
                 .build();

@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS url_record (
-    url VARCHAR(250) PRIMARY KEY,
-    extension CHAR(8) UNIQUE,
+    extension CHAR(8) PRIMARY KEY,
+    url VARCHAR(250) UNIQUE,
     hits INT
 );
