@@ -1,34 +1,26 @@
 package com.github.ahimsaka.shorturl.shorturl.webconfig;
 
-import com.github.ahimsaka.shorturl.shorturl.dao.URLRecord;
+import com.github.ahimsaka.shorturl.shorturl.utils.URLRecord;
 import com.github.ahimsaka.shorturl.shorturl.utils.ExtensionGenerator;
 import com.github.ahimsaka.shorturl.shorturl.utils.URLTools;
-import lombok.Builder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.util.Pair;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
-import org.springframework.jdbc.core.RowMapper;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import org.springframework.security.core.context.SecurityContext;
-import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
-import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.server.ServerRequest;
 import org.springframework.web.reactive.function.server.ServerResponse;
 import reactor.core.publisher.Mono;
-import reactor.core.publisher.Signal;
 import reactor.netty.http.client.HttpClient;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.net.URI;
-import java.sql.ResultSet;
-import java.sql.SQLException;
 
 import static org.springframework.web.reactive.function.server.ServerResponse.*;
 

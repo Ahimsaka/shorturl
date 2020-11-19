@@ -1,4 +1,4 @@
-package com.github.ahimsaka.shorturl.shorturl.dao;
+package com.github.ahimsaka.shorturl.shorturl.utils;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

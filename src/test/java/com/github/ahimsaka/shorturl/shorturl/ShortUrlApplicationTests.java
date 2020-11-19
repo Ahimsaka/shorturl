@@ -1,6 +1,6 @@
 package com.github.ahimsaka.shorturl.shorturl;
 
-import com.github.ahimsaka.shorturl.shorturl.dao.URLRecord;
+import com.github.ahimsaka.shorturl.shorturl.utils.URLRecord;
 import com.github.ahimsaka.shorturl.shorturl.utils.ExtensionGenerator;
 import com.github.ahimsaka.shorturl.shorturl.utils.URLTools;
 import org.springframework.jdbc.core.JdbcTemplate;
