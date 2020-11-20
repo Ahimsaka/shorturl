@@ -48,7 +48,6 @@ public class WebConfig implements WebFluxConfigurer {
     public RouterFunction<?> router() {
         return route()
                 .GET(getPath + "user", databaseHandler::getAllByUser)
-                .PUT(getPath + "user", databaseHandler::putURLAsUser)
                 .GET(getPath + "{extension}", databaseHandler::getURLByExtension)
                 .PUT(putPath, databaseHandler::putURL)
                 .build();

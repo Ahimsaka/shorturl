@@ -56,10 +56,17 @@ class DatabaseHandlerTests {
     }
 
     @Test
-    void putInvalidURL() {
+    void putInvalidURLProtocol() {
         webClient.put()
                 .uri("/")
                 .bodyValue("htttps://www.google.com/")
+                .exchange().expectStatus().isBadRequest();
+    }
+
+    void putInvalidURL(){
+        webClient.put()
+                .uri("/")
+                .bodyValue("horsey is funny")
                 .exchange().expectStatus().isBadRequest();
     }
 

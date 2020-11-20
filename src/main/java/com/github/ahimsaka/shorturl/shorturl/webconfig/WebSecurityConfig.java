@@ -34,7 +34,6 @@ public class WebSecurityConfig {
         this.dataSource = dataSource;
     }
 
-
     @Bean
     public SecurityWebFilterChain securityWebFilterChain(
             ServerHttpSecurity http) {

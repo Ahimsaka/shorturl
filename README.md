@@ -17,17 +17,20 @@ If the URL input has not been stored previously, the server will respond with a 
 
 GET requests are redirected to the stored URL. If the extension is not found in the database, the server will respond with a 404 Not Found error. 
 
+### OAuth2 Support
+
+OAuth2 support is offered through Google and Github. For convenience, OAuth2 accounts connected to the same email address are considered the same account. 
+
+Logged in users may visit extension /user to request a list of URLs they have submitted, formatted as:
+`[URLRecord(extension=fBFgGOFq, url=http://www.google.com, hits=0)]`
+
+##### OAuth2 Configuration 
+
+The OAuth2 configuration file is located at shorturl/src/resources/oauthconfig.properties. To use OAuth2, simply add your client-id and client-secret from each provider in the appropriate place. 
 
 ### Configuration
 
-All configuration options are found in the application.properties file at shorturl/src/resources/application.properties. 
-
-##### PostgresQL Configuration
-
-- logging.level.org.springframework.data.r2dbc - sets the logging level of the database client (default is DEBUG) 
-- spring.r2dbc.url - sets the location of the database server (default is localhost)
-- spring.r2dbc.username - sets the username used to access the database (default is user)
-- spring.r2dbc.password - sets the password associated with the username (default is password)
+All configuration options listed below are found in the application.properties file at shorturl/src/resources/application.properties.
 
 ##### Path Configuration
 
@@ -44,3 +47,23 @@ Extensions are generated via JNanoid. The creators of the original Nanoid node.j
 
 Note that adding reserved or forbidden URL characters to jnanoid.chars will cause the build to fail. 
 
+##### PostgresQL Configuration
+
+Default settings:
+
+- logging.level.org.springframework.data.jdbc - sets the logging level of the database client (default is DEBUG) 
+- spring.datasource.url=jdbc:postgresql://localhost:5432/mydb
+- spring.datasource.username=user
+- spring.datasource.password=password
+- spring.datasource.driver-class-name=org.postgresql.Driver
+- spring.datasource.initialization-mode=always
+
+##### Flyway Migration Configuration
+
+Default settings: 
+- spring.flyway.user=user
+- spring.flyway.password=password
+- spring.flyway.schemas=public
+- spring.flyway.url=jdbc:postgresql://localhost/mydb
+
+spring.flyway.url must match spring.datasource.url. 

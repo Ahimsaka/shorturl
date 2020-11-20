@@ -6,7 +6,6 @@ import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
 
 @Data
-//@ToString
 @NoArgsConstructor
 @AllArgsConstructor
 public class URLRecord {

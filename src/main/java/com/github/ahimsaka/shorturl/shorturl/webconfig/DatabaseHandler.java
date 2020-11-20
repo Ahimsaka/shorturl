@@ -29,27 +29,102 @@ public class DatabaseHandler {
     Logger log = LoggerFactory.getLogger(DatabaseHandler.class);
     private final JdbcTemplate jdbcTemplate;
     private final ExtensionGenerator extensionGenerator;
-    private final WebClient webClient;
+
     Mono<SecurityContext> context = ReactiveSecurityContextHolder.getContext();
-
-
 
     DatabaseHandler(JdbcTemplate jdbcTemplate, ExtensionGenerator extensionGenerator) {
         this.jdbcTemplate = jdbcTemplate;
         this.extensionGenerator = extensionGenerator;
+    }
+    /*
 
-        this.webClient = WebClient.builder()
-                .clientConnector(new ReactorClientHttpConnector(
-                        HttpClient.create().followRedirect(false)
-                )).build();
+    Creating a new ShortURL extension.
 
+     */
+    public Mono<ServerResponse> putURL(ServerRequest request){
+        /*
+        return ok() + url if existing record or created() + url if new record
+        created.
+         */
+        return request.bodyToMono(String.class)
+                .flatMap(URLTools::checkRedirects)
+                .flatMap(this::getOrInsertByURL)
+                .delayUntil(this::insertURLToUsersLinks)
+                .flatMap(pair -> switch (pair.getFirst()) {
+                    case "insert" -> created(URI.create(pair.getSecond().getExtension())).build();
+                    case "select" -> ok().bodyValue(pair.getSecond().getExtension());
+                    default -> status(500).build();
+                })
+                .onErrorResume(e -> badRequest().bodyValue(e.getMessage()));
     }
 
+    public Mono<OAuth2User> insertURLToUsersLinks(Pair<String, URLRecord> pair){
+        /*
+        If User is signed in, adds extension to the join table. If not, does nothing.
+         */
+        return context.map(SecurityContext::getAuthentication)
+                .doOnNext(auth -> log.info("after auth"))
+                .map(Authentication::getPrincipal)
+                .cast(OAuth2User.class)
+                .doOnNext(user -> {
+                    jdbcTemplate.update("INSERT INTO users_links (username, extension)" +
+                                    "VALUES (?, ?)",
+                            user.getAttribute("email"),
+                            pair.getSecond().getExtension());
+                });
+    }
+
+    public Mono<Pair<String, URLRecord>> getOrInsertByURL(String url) {
+        /*
+        If URL already listed in database, return the extension. Otherwise,
+        insert and return.
+         */
+        String extension;
+        try {
+            extension = jdbcTemplate.queryForObject(
+                    "SELECT extension FROM url_record WHERE url = ?",
+                    String.class,
+                    url
+            );
+        } catch (Exception e) {
+            URLRecord record = new URLRecord(extensionGenerator.generate(), url, 0);
+            jdbcTemplate.update("INSERT INTO url_record (url, extension, hits)" +
+                            "values (?, ?, ?)",
+                    record.getUrl(), record.getExtension(), record.getHits());
+            return Mono.just(Pair.of("insert", record));
+        }
+        return Mono.just(Pair.of("select", new URLRecord(extension, url, 0)));
+    }
+    /*
+
+    Requesting an existing record.
+
+     */
+    public Mono<ServerResponse> getURLByExtension(ServerRequest request) {
+        String extension = request.pathVariable("extension");
+        int update = jdbcTemplate.update(
+                    "UPDATE url_record\n" +
+                            "SET hits = hits + 1\n" +
+                            "WHERE extension = ?", extension);
+
+        if (update == 0)
+            return badRequest().bodyValue(String.format("No record found for '%s'.", extension));
+
+        return temporaryRedirect(jdbcTemplate.queryForObject(
+                "SELECT url FROM url_record\n" +
+                        "WHERE extension = ?", URI.class, extension)).build()
+                .onErrorResume(e -> status(HttpStatus.BAD_REQUEST)
+                        .bodyValue(String.format("Request for '%s' threw exception %s.", extension, e)));
+    }
+    /*
+
+    OAuth2 Support
+
+     */
     public void upsertUser(OAuth2User user) {
         /*
         OAuth2 users won't be registering, so we need to make sure they're in
         the database.
-
 
         Currently only 2 OAuth2 providers accepted (Google and Github).
         Google oauth2user objects include an "iss" key/value pair, so we can
@@ -71,6 +146,10 @@ public class DatabaseHandler {
     }
 
     public Mono<ServerResponse> getAllByUser(ServerRequest request) {
+        /*
+        When a user logs in via OAuth, provide them a list of links they've previously
+        registered.
+         */
         return context.map(SecurityContext::getAuthentication)
                 .map(Authentication::getPrincipal)
                 .cast(OAuth2User.class)
@@ -90,83 +169,6 @@ public class DatabaseHandler {
                             });
                 })
                 .flatMap(records -> ok().bodyValue(records.toString()));
-    }
-
-    /* return ok() + url if existing record
-     or created() + url if new record created. */
-    public Mono<ServerResponse> putURL(ServerRequest request) {
-        return request.bodyToMono(String.class)
-                .flatMap(URLTools::checkRedirects)
-                .flatMap(this::getOrInsertByURL)
-                .flatMap(pair -> switch (pair.getFirst()) {
-                    case "insert" -> created(URI.create(pair.getSecond().getExtension())).build();
-                    case "select" -> ok().bodyValue(pair.getSecond().getExtension());
-                    default -> status(500).build();
-                })
-                .onErrorResume(e -> badRequest().bodyValue(e.getMessage()));
-    }
-
-    public Mono<OAuth2User> insertURLToUsersLinks(Pair<String, URLRecord> pair){
-        return context.map(SecurityContext::getAuthentication)
-                .doOnNext(auth -> log.info("after auth"))
-                .map(Authentication::getPrincipal)
-                .cast(OAuth2User.class)
-                .doOnNext(user -> {
-                    log.info(user.getAttribute("email"));
-                    jdbcTemplate.update("INSERT INTO users_links (username, extension)" +
-                            "VALUES (?, ?)",
-                            user.getAttribute("email"),
-                            pair.getSecond().getExtension());
-                });
-    }
-
-    public Mono<ServerResponse> putURLAsUser(ServerRequest request){
-        return request.bodyToMono(String.class)
-                .flatMap(URLTools::checkRedirects)
-                .flatMap(this::getOrInsertByURL)
-                .delayUntil(this::insertURLToUsersLinks)
-                .flatMap(pair -> switch (pair.getFirst()) {
-                    case "insert" -> created(URI.create(pair.getSecond().getExtension())).build();
-                    case "select" -> ok().bodyValue(pair.getSecond().getExtension());
-                    default -> status(500).build();
-                })
-                .onErrorResume(e -> badRequest().bodyValue(e.getMessage()));
-    }
-
-
-    public Mono<ServerResponse> getURLByExtension(ServerRequest request) {
-        String extension = request.pathVariable("extension");
-        int update = jdbcTemplate.update(
-                    "UPDATE url_record\n" +
-                            "SET hits = hits + 1\n" +
-                            "WHERE extension = ?", extension);
-
-        if (update == 0) return badRequest().bodyValue(String.format("No record found for '%s'.", extension));
-
-        return temporaryRedirect(jdbcTemplate.queryForObject(
-                "SELECT url FROM url_record\n" +
-                        "WHERE extension = ?", URI.class, extension)).build()
-                .onErrorResume(e -> status(HttpStatus.BAD_REQUEST)
-                        .bodyValue(String.format("Request for '%s' threw exception %s.", extension, e)));
-    }
-
-    public Mono<Pair<String, URLRecord>> getOrInsertByURL(String url) {
-        String extension;
-        try {
-            extension = jdbcTemplate.queryForObject(
-                    "SELECT extension FROM url_record WHERE url = ?",
-                    String.class,
-                    url
-            );
-        } catch (Exception e) {
-            URLRecord record = new URLRecord(extensionGenerator.generate(), url, 0);
-            jdbcTemplate.update("INSERT INTO url_record (url, extension, hits)" +
-                            "values (?, ?, ?)",
-                    record.getUrl(), record.getExtension(), record.getHits());
-            return Mono.just(Pair.of("insert", record));
-        }
-
-        return Mono.just(Pair.of("select", new URLRecord(extension, url, 0)));
     }
 }
 
